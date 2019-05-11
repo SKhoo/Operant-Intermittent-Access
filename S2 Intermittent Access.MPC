@@ -1,0 +1,679 @@
+\-------------------------------------------------------------------------
+\ S2 Intermittent Access
+\ Version: 1.0
+\ Created by Shaun Khoo (5 April 2019)
+\ >('.')<
+\ http://orcid.org/0000-0002-0972-3788
+\ License: MIT
+\-------------------------------------------------------------------------
+
+\CONTROL CONSTANTS
+^SessionLength = 420	\Session length in minutes
+^FixedRatio = 3		\Fixed ratio per reinforcer [Set to 0 for extinction]
+^CueLength = 5		\Cue length in seconds
+^Timeout = 25		\Timeout until next reinforcer available, includes cue
+^PumpTime = 5		\Pump time in seconds for fluid reinforcers
+^MaximumRewards = 0	\Maximum rewards, set to 0 for no maximum
+^TimebinSize = 1	\Timebin size in minutes
+^ActiveLever = 1	\Active lever, set to 1 for left, 10 for right
+^RewardIdentity = 1	\1 = reward delivered by fluid pump
+			\2 = reward delivered pellet dispenser
+^NumberOfCycles = 6	\Number of drug/no-drug cycles - this can be cut off if the session length is too short
+^DrugPeriod = 12	\Length of the drug period in minutes
+^NoDrugPeriod = 60	\Length of the no-drug period in minutes
+^Version = 100		\Program version number
+
+\INPUTS
+^LeftLever = 1
+^RightLever = 3
+^Magazine = 4
+^ActivityOne = 5
+^ActivityTwo = 6
+^ActivityThree = 7
+^ActivityFour = 8
+
+\OUTPUTS
+^LeftOut = 1
+^RightOut = 10
+^LiquidDispenser = 2
+^Pellet = 3
+^LeftLight = 4
+^RightLight = 5
+^Tone = 6
+^Houselight = 7
+^Pump = 8
+^Fan = 9
+	
+\Z-PULSES
+^Reward = 1
+^EndTimeout = 2
+^SayNoToDrugs = 3
+^Shutdown = 4
+
+\VARIABLES
+\VARIABLES - DATA - Session Totals
+DIM A = 31
+\Active Lever Presses = A(0)
+\Inactive Lever Presses = A(1)
+\Rewards = A(2)
+\Magazine Entries = A(3)
+\Total Activity = A(4)
+\Retracted Active Lever = A(5)
+\Retracted Inactive Lever = A(6)
+\Timeout Magazine Entries = A(7)
+\Timeout Total Activity = A(8)
+\Active Lever Latency = A(9)
+\Inactive Lever Latency = A(10)
+\Reward Latency = A(11)
+\Magazine Entry Latency = A(12)
+\ActivityOne Total = A(13)
+\ActivityTwo Total = A(14)
+\ActivityThree Total = A(15)
+\ActivityFour Total = A(16)
+\ActivityOne Timeout = A(17)
+\ActivityTwo Timeout = A(18)
+\ActivityThree Timeout = A(19)
+\ActivityFour Timeout = A(20)
+\ActivityOne Latency = A(21)
+\ActivityTwo Latency = A(22)
+\ActivityThree Latency = A(23)
+\ActivityFour Latency = A(24)
+\No-drug Magazine Entries = A(25)
+\No-drug Activity = A(26)
+\No-drug ActivityOne = A(27)
+\No-drug ActivityTwo = A(28)
+\No-drug ActivityThree = A(29)
+\No-drug ActivityFour = A(30)
+var_alias Weight = A(31)
+
+\VARIABLES - DATA - Timecourse Arrays
+DIM B = 50000	\Active Lever,			subscript S/X(8)
+DIM C = 50000	\Inactive Lever			subscript S/X(9)
+DIM D = 50000	\Rewards			subscript S/X(10)
+DIM E = 50000	\Magazine Entries		subscript S/X(11)
+DIM F = 50000	\ActivityOne			subscript S/X(12)
+DIM G = 50000	\ActivityTwo			subscript S/X(13)
+DIM H = 50000	\ActivityThree			subscript S/X(14)
+DIM I = 50000	\ActivityFour			subscript S/X(15)
+
+\VARIABLES - DATA - Timebin Arrays
+DIM J = 10000	\Active Lever,			subscript T
+DIM K = 10000	\Inactive Lever,		subscript T
+DIM L = 10000	\Rewards,			subscript T
+DIM M = 10000	\Magazine Entries,		subscript T
+DIM N = 10000	\Total Activity,		subscript T
+
+\VARIABLES - DATA - Cycle-based Arrays
+DIM O = 10000	\Active Lever,			subscript S/X(17)
+DIM P = 10000	\Inactive Lever,		subscript S/X(17)
+DIM Q = 10000	\Rewards,			subscript S/X(17)
+DIM R = 10000	\Magazine Entries,		subscript S/X(18)
+DIM U = 10000	\Total Activity,		subscript S/X(18)
+
+\VARIABLES - DATA - Retracted Lever Timecourse
+\Retracted lever responses are not normally counted, but if we can collect the data
+\then why not?
+DIM V = 20000	\Retracted Active Lever,	subscript S/X(19)
+DIM W = 20000	\Retracted Inactive Lever,	subscript S/X(20)
+
+\VARIABLES - CONTROL - WORKING VARIABLES
+DIM X = 22
+\X(0) = Session Clock (seconds)
+\X(1) = Decisecond Clock
+\X(2) = Timebin Clock
+\X(3) = Re-zeroing response counter
+\X(4) = Cue operation time 1 [either cue time, or pump time, or cue and pump time]
+\X(5) = Cue operation time 2 [cue time after pump or pump time after cue]
+\X(6) = Post cue and pump timeout
+\X(7) = Current Ratio
+\X(8) = Subscript for B
+\X(9) = Subscript for C
+\X(10) = Subscript for D
+\X(11) = Subscript for E
+\X(12) = Subscript for F
+\X(13) = Subscript for G
+\X(14) = Subscript for H
+\X(15) = Subscript for I
+\X(16) = Cycle clock
+\X(17) = Subscript for O, P, Q
+\X(18) = Subscript for R, U
+\X(19) = Subscript for V
+\X(20) = Subscript for W
+\X(21) = Cycles run
+\X(22) = Cycle stage
+
+\VARIABLES - CONTROL - SESSION PARAMETERS
+DIM Z = 14
+var_alias Session Length (min) = Z(0)
+var_alias Fixed Ratio = Z(1)
+var_alias Cue Length (s) = Z(2)
+var_alias Timeout (s) = Z(3)
+var_alias Pump Operation Time (s) = Z(4)
+var_alias Maximum Rewards = Z(5)
+var_alias Number of Timebins = Z(6)
+var_alias Active Lever (1L 3R) = Z(7)
+var_alias Inactive Lever (1L 3R) = Z(8)
+var_alias Cue Light (4L 5R) = Z(9)
+var_alias Reward Identity = Z(10)
+var_alias Number of Cycles = Z(11)
+var_alias Drug Period (min) = Z(12)
+var_alias No Drug Period (min) = Z(13)
+var_alias Version = Z(14)
+
+DISKVARS = A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, U, V, W, Z
+DISKOPTIONS = FULLHEADERS
+DISKFORMAT = 16.3
+DISKCOLUMNS = 1
+Y2KCOMPLIANT
+
+\-------------------------------------------------------------------------
+\State Set 1 - Control Program
+
+S.S.1,
+S1, 	\State 1 shows the program has loaded.
+	0.01": SET Z(14) = ^Version / 100;
+	SHOW 1, Program Version, Z(14);
+
+	\Set the variables according to the control constants
+	SET Z(0) = ^SessionLength, Z(1) = ^FixedRatio, Z(2) = ^CueLength;
+	SET Z(3) = ^Timeout, Z(4) = ^PumpTime, Z(5) = ^MaximumRewards;
+	SET Z(6) = Z(0) / ^TimebinSize, Z(7) = ^ActiveLever;
+	SET Z(10) = ^RewardIdentity, Z(11) = ^NumberOfCycles;
+	SET Z(12) = ^DrugPeriod, Z(13) = ^NoDrugPeriod;
+
+	\Seal all arrays
+	SET B(1) = -987.987, C(1) = -987.987, D(1) = -987.987;		\Timestamp recorders
+	SET E(1) = -987.987, F(1) = -987.987, G(1) = -987.987;
+	SET H(1) = -987.987, I(1) = -987.987;
+	SET J(1) = -987.987, K(1) = -987.987, L(1) = -987.987;		\Timebin recorders
+	SET M(1) = -987.987, N(1) = -987.987;
+	SET O(1) = -987.987, P(1) = -987.987, Q(1) = -987.987;		\Cycle Recorders
+	SET R(1) = -987.987, U(1) = -987.987;
+	SET V(1) = -987.987, W(1) = -987.987;				\Retracted lever recorders
+	SET A(31) = -987.987;						\Seal the weight element
+
+	\Set the active lever
+	IF Z(7) < 2 [@LeftActive, @RightActive]
+		@LeftActive: SET Z(7) = ^LeftLever, Z(8) = ^RightLever;
+			SET Z(9) = ^LeftLight ---> S2
+		@RightActive: SET Z(7) = ^RightLever, Z(8) = ^LeftLever;
+			SET Z(9) = ^RightLight ---> S2
+
+S2,	\State 2 waits for the start command
+	#START: SHOW 1, Session Time, X(0); ON ^Houselight, ^Fan;
+
+	\Set the program start time
+	SET STARTHOURS = CURRENTHOURS;
+	SET STARTMINUTES = CURRENTMINUTES, STARTSECONDS = CURRENTSECONDS;
+
+	\Set default latencies
+	SET B(0) = Z(0) * 60, C(0) = Z(0) * 60, D(0) = Z(0) * 60;
+	SET E(0) = Z(0) * 60, F(0) = Z(0) * 60, G(0) = Z(0) * 60;
+	SET H(0) = Z(0) * 60, I(0) = Z(0) * 60;
+
+	\Set the active lever
+	IF Z(7) < 2 [@LeftActive, @RightActive]
+		@LeftActive: SET Z(7) = ^LeftLever, Z(8) = ^RightLever;
+			SET Z(9) = ^LeftLight ---> S3
+		@RightActive: SET Z(7) = ^RightLever, Z(8) = ^LeftLever;
+			SET Z(9) = ^RightLight ---> S3
+
+S3,	\State 3 counts the session length in seconds
+	1": ADD X(0); SHOW 1, Session Time, X(0);
+	IF X(0) >= Z(0) * 60 [@SHUTDOWN, @CONTINUE]
+		@SHUTDOWN: Z^Shutdown;
+		SET A(9) = B(0), A(10) = C(0), A(11) = D(0);		\Transfer latency values to the A array
+		SET A(12) = E(0), A(21) = F(0), A(22) = G(0);
+		SET A(23) = H(0), A(24) = I(0);
+		OFF ^LeftOut, ^RightOut, ^Houselight, ^Fan ---> S4
+		@CONTINUE: ---> SX
+
+	#Z^Shutdown: SET A(9) = B(0), A(10) = C(0), A(11) = D(0);		\Transfer latency values to the A array
+	SET A(12) = E(0), A(21) = F(0), A(22) = G(0);
+	SET A(23) = H(0), A(24) = I(0);
+	OFF ^LeftOut, ^RightOut, ^Houselight, ^Fan ---> S4
+
+S4,	\State 4 waits for 1 second and closes the program
+	1": ---> STOPABORTFLUSH
+
+\-------------------------------------------------------------------------
+\State Set 2 - Centisecond Timer
+
+S.S.2,
+S1,	\State 1 waits for the start command
+	#START: IF Z(2) = Z(4) [@EQUAL, @INEQUALITY]
+		@EQUAL: SET X(4) = Z(2) * 1", X(5) = -1;
+		SET X(6) = (Z(3) - Z(2)) * 1" ---> S2
+		@INEQUALITY: IF Z(4) > Z(2) [@LONGERPUMP, @LONGERCUE]
+			@LONGERPUMP: SET X(4) = Z(2) * 1", X(5) = (Z(4) - Z(2)) * 1";
+			SET X(6) = (Z(3) - Z(4)) * 1" ---> S2
+			@LONGERCUE: SET X(4) = Z(4) * 1", X(5) = (Z(2) - Z(4)) * 1";
+			SET X(6) = (Z(3) - Z(2)) * 1" ---> S2
+
+S2,	\State 2 counts upwards in 10 ms increments
+	0.01": SET X(1) = X(1) + 0.01;
+	SET X(2) = X(2) + 0.01; 
+	IF ((X(2) + 0.001)/ 60 >= (Z(0) / Z(6))) AND ((T + 1) < Z(6)) [@TRUE, @FALSE]
+		@TRUE: SET X(2) = 0; ADD T;
+		SET J(T) = 0, K(T) = 0, L(T) = 0, M(T) = 0;
+		SET N(T) = 0;
+		SET J(T+1) = -987.987, K(T+1) = -987.987;
+		SET L(T+1) = -987.987, M(T+1) = -987.987;
+		SET N(T+1) = -987.987 ---> SX
+		@FALSE: ---> SX
+
+	#Z^Shutdown: ---> S3
+
+S3,	\State 3 is a holding state
+	#START: ---> SX
+
+\-------------------------------------------------------------------------
+\State Set 3 - Cycle Management
+
+S.S.3,
+S1,	\State 1 waits for the start command
+	#START: SET X(22) = 1 ---> S2
+
+S2,	\State 2 waits to end the drug period
+	1": ADD X(16); IF X(16) >= Z(12) * 60 [@END, @CONTINUE]
+		@END: Z^SayNoToDrugs; SET X(16) = 0, X(22) = 2; ADD X(18);
+		SET S = X(18);
+		SET R(S) = 0, U(S) = 0;
+		SET R(S+1) = -987.987, U(S+1) = -987.987 ---> S3
+		@CONTINUE: ---> SX
+
+S3,	\State 3 waits to end the no-drug period and checks to see if another
+	\cycle should be run
+	1": ADD X(16); IF X(16) >= Z(13) * 60 [@CHECK, @CONTINUE]
+		@CHECK: ADD X(21); IF X(21) >= Z(11) [@GOHOME, @ANOTHER]
+			@GOHOME: Z^Shutdown ---> S4
+			@ANOTHER: Z^EndTimeout;
+			SET X(16) = 0, X(22) = 1; ADD X(17), X(18);
+			SET S = X(17);
+			SET O(S) = 0, P(S) = 0, Q(S) = 0;
+			SET O(S+1) = -987.987, P(S+1) = -987.987, Q(S+1) = -987.987;
+			SET S = X(18);
+			SET R(S) = 0, U(S) = 0;
+			SET R(S+1) = -987.987, U(S+1) = -987.987 ---> S2
+		@CONTINUE: ---> SX
+
+S4,	\State 4 is a holding state
+	#START: ---> SX
+
+
+
+\-------------------------------------------------------------------------
+\State Set 4 - Active Lever
+
+S.S.4,
+S1,	\State 1 waits for the start command
+	#START: SHOW 2, Active Lever, A(0);
+	SHOW 4, Rewards, A(2); ON ^LeftOut, ^RightOut;
+	SET X(7) = Z(1) ---> S2
+
+S2,	\State 2 counts active lever presses
+	#RZ(7): ADD A(0), J(T), X(3); SET S = X(8); SET B(S) = X(1);
+	ADD X(8); SET S = X(8); SET B(S) = -987.987;
+	SHOW 2, Active Lever, A(0);
+
+	\Record the lever press as belonging to the current cycle
+	SET S = X(17); ADD O(S);
+
+	\IF the counter has reached the current ratio and that ratio is greater than 0
+	\i.e. is not extinction, and either the maximum number of rewards has not been
+	\reached OR there is no maximum number of rewards, THEN deliver the reward.
+	IF ((X(3) >= X(7)) AND (X(7) > 0)) AND ((A(2) < Z(5)) OR (Z(5) <= 0)) [@REWARD, @NULL]
+		@REWARD: Z^Reward; ADD A(2), L(T);
+		SET S = X(10); SET D(S) = X(1); ADD X(10);
+		SET S = X(10); SET D(S) = -987.987;
+		SHOW 4, Rewards, A(2);
+		SET X(3) = 0;
+		SET S = X(17); ADD Q(S) ---> S3
+		@NULL: ---> SX
+
+	#Z^SayNoToDrugs: OFF ^LeftOut, ^RightOut ---> S3
+	#Z^Shutdown: ---> S4
+
+S3,	\State 3 counts active lever presses during the timeout
+	\Med-PC levers can usually still be activated even when
+	\retracted.
+	#RZ(7): ADD A(5); SET S = X(19), V(S) = X(1);
+	ADD X(19); SET S = X(19), V(S) = -987.987 ---> SX
+
+	#Z^EndTimeout: ON ^LeftOut, ^Rightout; OFF Z(9) ---> S2
+	#Z^Shutdown: ---> S4
+
+S4,	\State 4 is a holding state
+	#START: ---> SX
+
+\-------------------------------------------------------------------------
+\State Set 5 - Reward and cue delivery
+
+S.S.5,
+S1,	\State 1 waits for the start command
+	#START: ---> S2
+
+S2,	\State 2 waits for the ^Reward Z-Pulse
+	#Z^Reward: OFF ^LeftOut, ^RightOut;
+	ON Z(9), ^Tone; IF Z(10) = 1 [@PUMP, @PELLET]
+		@PUMP: ON ^Pump ---> S3
+		@PELLET: ON ^Pellet ---> S3
+
+S3,	\State 3 waits to switch things off
+	X(4)#T: IF X(5) <= 0 [@ALLOFF, @SOMEOFF]
+		@ALLOFF: OFF ^Tone, ^Pump, ^Pellet;
+		IF X(6) > 0 [@TIMEOUT, @ENDTIMEOUT]
+			@TIMEOUT: ---> S5
+			@ENDTIMEOUT: Z^EndTimeout ---> S2
+		@SOMEOFF: IF Z(4) > Z(2) [@KEEPPUMP, @KEEPCUE]
+			@KEEPPUMP: OFF ^Tone ---> S4
+			@KEEPCUE: OFF ^Pump, ^Pellet ---> S4
+
+S4,	\State 4 switches off anything else
+	X(5)#T: OFF ^Tone, ^Pump, ^Pellet;
+	IF X(6) > 0 [@TIMEOUT, @ENDTIMEOUT]
+		@TIMEOUT: ---> S5
+		@ENDTIMEOUT: IF X(22) < 1.5 [@DRUG, @NODRUG]
+			@DRUG: Z^EndTimeout ---> S2
+			@NODRUG: ---> S2
+
+S5,	\State 5 waits to end the timeout
+	X(6)#T: IF (A(2) >= Z(5)) AND (Z(5) > 0) [@MAX, @NOMAX]
+		@MAX: Z^Shutdown ---> S6
+		@NOMAX: IF X(22) < 1.5 [@DRUG, @NODRUG]
+			@DRUG: Z^EndTimeout ---> S2
+			@NODRUG: ---> S2
+
+S6,	\State 6 is a holding state
+	#START: ---> SX
+
+\-------------------------------------------------------------------------
+\State Set 6 - Inactive Lever
+
+S.S.6,
+S1,	\State 1 waits for the start command
+	#START: SHOW 3, Inactive Lever, A(1) ---> S2
+
+S2,	\State 2 counts inactive lever presses
+	#RZ(8): ADD A(1), K(T); SET S = X(9); SET C(S) = X(1); ADD X(9);
+	SET S = X(9); SET C(S) = -987.987; SHOW 3, Inactive Lever, A(1);
+
+	\Record the lever press as belonging to the current cycle
+	SET S = X(17); ADD P(S) ---> SX
+
+	#Z^Reward ! #Z^SayNoToDrugs: ---> S3
+	#Z^Shutdown: ---> S4
+
+S3,	\State 3 counts inactive lever presses during the timeout
+	\Med-PC levers can usually still be activated even when
+	\retracted.
+	#RZ(8): ADD A(6); SET S = X(20), W(S) = X(1);
+	ADD X(20); SET S = X(20), W(S) = -987.987 ---> SX
+
+	#Z^EndTimeout: ---> S2
+	#Z^Shutdown: ---> S4
+
+S4,	\State 4 is a holding state
+	#START: ---> SX
+
+\-------------------------------------------------------------------------
+\State Set 7 - Magazine Entries
+
+S.S.7,
+S1,	\State 1 waits for the start command
+	#START: SHOW 5, Magazine Entries, A(3) ---> S2
+
+S2,	\State 2 counts magazine entries
+	#R^Magazine: ADD A(3), M(T); SET S = X(11); SET E(S) = X(1);
+	ADD X(11); SET S = X(11); SET E(S) = -987.987;
+	SHOW 5, Magazine Entries, A(3);
+
+	\Record the magazine entry as belonging to the current cycle
+	SET S = X(18); ADD R(S) ---> SX
+
+	#Z^Reward ! #Z^SayNoToDrugs: ---> S3
+	#Z^Shutdown: ---> S4
+
+S3,	\State 3 counts magazine entries during the timeout
+	#R^Magazine: ADD A(3), M(T); SET S = X(11); SET E(S) = X(1);
+	ADD X(11); SET S = X(11); SET E(S) = -987.987;
+	SHOW 5, Magazine Entries, A(3);
+
+	\Record the magazine entry as belonging to the current cycle
+	SET S = X(18); ADD R(S);
+
+	\Record the magazine entry as belonging to the no drug or timeout
+	IF S.S.3 > 2 [@NODRUG, @DRUG]
+		@NODRUG:  ADD A(25); IF S.S.5 > 2 [@TIMEOUT, @NORMAL]
+			@TIMEOUT: ADD A(7) ---> SX
+			@NORMAL: ---> SX
+		@DRUG: IF S.S.5 > 2 [@TIMEOUT, @NORMAL]
+			@TIMEOUT: ADD A(7) ---> SX
+			@NORMAL: ---> SX
+
+	#Z^EndTimeout: ---> S2
+	#Z^Shutdown: ---> S4
+
+S4,	\State 4 is a holding state
+	#START: ---> SX
+
+\-------------------------------------------------------------------------
+\State Set 8 - Locomotor Activity
+
+S.S.8,
+S1,	\State 1 waits for the start command
+	#START: SHOW 6, Locomotor Counts, A(4) ---> S2
+
+S2,	\State 2 will count any locomotor beam break
+	#R^ActivityOne: ADD A(4), A(13), N(T); SET S = X(12);
+	SET F(S) = X(1); ADD X(12); SET S = X(12); SET F(S) = -987.987;
+	SHOW 6, Locomotor Counts, A(4);
+	SET S = X(18); ADD U(S); IF S.S.3 > 2 [@NODRUG, @DRUG]
+		@NODRUG:  ADD A(26), A(27); IF S.S.5 > 2 [@TIMEOUT, @NORMAL]
+			@TIMEOUT: ADD A(8), A(17) ---> S3
+			@NORMAL: ---> S3
+		@DRUG: IF S.S.5 > 2 [@TIMEOUT, @NORMAL]
+			@TIMEOUT: ADD A(8), A(17) ---> S3
+			@NORMAL: ---> S3
+
+	#R^ActivityTwo: ADD A(4), A(14), N(T); SET S = X(13);
+	SET G(S) = X(1); ADD X(13); SET S = X(13); SET G(S) = -987.987;
+	SHOW 6, Locomotor Counts, A(4);
+	SET S = X(18); ADD U(S); IF S.S.3 > 2 [@NODRUG, @DRUG]
+		@NODRUG:  ADD A(26), A(28); IF S.S.5 > 2 [@TIMEOUT, @NORMAL]
+			@TIMEOUT: ADD A(8), A(18) ---> S4
+			@NORMAL: ---> S4
+		@DRUG: IF S.S.5 > 2 [@TIMEOUT, @NORMAL]
+			@TIMEOUT: ADD A(8), A(18) ---> S4
+			@NORMAL: ---> S4
+
+	#R^ActivityThree: ADD A(4), A(15), N(T); SET S = X(14);
+	SET H(S) = X(1); ADD X(14); SET S = X(14); SET H(S) = -987.987;
+	SHOW 6, Locomotor Counts, A(4);
+	SET S = X(18); ADD U(S); IF S.S.3 > 2 [@NODRUG, @DRUG]
+		@NODRUG:  ADD A(26), A(29); IF S.S.5 > 2 [@TIMEOUT, @NORMAL]
+			@TIMEOUT: ADD A(8), A(19) ---> S5
+			@NORMAL: ---> S5
+		@DRUG: IF S.S.5 > 2 [@TIMEOUT, @NORMAL]
+			@TIMEOUT: ADD A(8), A(19) ---> S5
+			@NORMAL: ---> S5
+
+	#R^ActivityFour: ADD A(4), A(16), N(T); SET S = X(15);
+	SET I(S) = X(1); ADD X(15); SET S = X(15); SET I(S) = -987.987;
+	SHOW 6, Locomotor Counts, A(4);
+	SET S = X(18); ADD U(S); IF S.S.3 > 2 [@NODRUG, @DRUG]
+		@NODRUG:  ADD A(26), A(30); IF S.S.5 > 2 [@TIMEOUT, @NORMAL]
+			@TIMEOUT: ADD A(8), A(20) ---> S6
+			@NORMAL: ---> S6
+		@DRUG: IF S.S.5 > 2 [@TIMEOUT, @NORMAL]
+			@TIMEOUT: ADD A(8), A(20) ---> S6
+			@NORMAL: ---> S6
+
+	#Z^Shutdown: ---> S7
+
+S3,	\State 3 will count any locomotor beam except ^ActivityOne
+	#R^ActivityTwo: ADD A(4), A(14), N(T); SET S = X(13);
+	SET G(S) = X(1); ADD X(13); SET S = X(13); SET G(S) = -987.987;
+	SHOW 6, Locomotor Counts, A(4);
+	SET S = X(18); ADD U(S); IF S.S.3 > 2 [@NODRUG, @DRUG]
+		@NODRUG:  ADD A(26), A(28); IF S.S.5 > 2 [@TIMEOUT, @NORMAL]
+			@TIMEOUT: ADD A(8), A(18) ---> S4
+			@NORMAL: ---> S4
+		@DRUG: IF S.S.5 > 2 [@TIMEOUT, @NORMAL]
+			@TIMEOUT: ADD A(8), A(18) ---> S4
+			@NORMAL: ---> S4
+
+	#R^ActivityThree: ADD A(4), A(15), N(T); SET S = X(14);
+	SET H(S) = X(1); ADD X(14); SET S = X(14); SET H(S) = -987.987;
+	SHOW 6, Locomotor Counts, A(4);
+	SET S = X(18); ADD U(S); IF S.S.3 > 2 [@NODRUG, @DRUG]
+		@NODRUG:  ADD A(26), A(29); IF S.S.5 > 2 [@TIMEOUT, @NORMAL]
+			@TIMEOUT: ADD A(8), A(19) ---> S5
+			@NORMAL: ---> S5
+		@DRUG: IF S.S.5 > 2 [@TIMEOUT, @NORMAL]
+			@TIMEOUT: ADD A(8), A(19) ---> S5
+			@NORMAL: ---> S5
+
+	#R^ActivityFour: ADD A(4), A(16), N(T); SET S = X(15);
+	SET I(S) = X(1); ADD X(15); SET S = X(15); SET I(S) = -987.987;
+	SHOW 6, Locomotor Counts, A(4);
+	SET S = X(18); ADD U(S); IF S.S.3 > 2 [@NODRUG, @DRUG]
+		@NODRUG:  ADD A(26), A(30); IF S.S.5 > 2 [@TIMEOUT, @NORMAL]
+			@TIMEOUT: ADD A(8), A(20) ---> S6
+			@NORMAL: ---> S6
+		@DRUG: IF S.S.5 > 2 [@TIMEOUT, @NORMAL]
+			@TIMEOUT: ADD A(8), A(20) ---> S6
+			@NORMAL: ---> S6
+
+	#Z^Shutdown: ---> S7
+
+S4,	\State 4 will count any locomotor beam except ^ActivityTwo
+	#R^ActivityOne: ADD A(4), A(13), N(T); SET S = X(12);
+	SET F(S) = X(1); ADD X(12); SET S = X(12); SET F(S) = -987.987;
+	SHOW 6, Locomotor Counts, A(4);
+	SET S = X(18); ADD U(S); IF S.S.3 > 2 [@NODRUG, @DRUG]
+		@NODRUG:  ADD A(26), A(27); IF S.S.5 > 2 [@TIMEOUT, @NORMAL]
+			@TIMEOUT: ADD A(8), A(17) ---> S3
+			@NORMAL: ---> S3
+		@DRUG: IF S.S.5 > 2 [@TIMEOUT, @NORMAL]
+			@TIMEOUT: ADD A(8), A(17) ---> S3
+			@NORMAL: ---> S3
+
+	#R^ActivityThree: ADD A(4), A(15), N(T); SET S = X(14);
+	SET H(S) = X(1); ADD X(14); SET S = X(14); SET H(S) = -987.987;
+	SHOW 6, Locomotor Counts, A(4);
+	SET S = X(18); ADD U(S); IF S.S.3 > 2 [@NODRUG, @DRUG]
+		@NODRUG:  ADD A(26), A(29); IF S.S.5 > 2 [@TIMEOUT, @NORMAL]
+			@TIMEOUT: ADD A(8), A(19) ---> S5
+			@NORMAL: ---> S5
+		@DRUG: IF S.S.5 > 2 [@TIMEOUT, @NORMAL]
+			@TIMEOUT: ADD A(8), A(19) ---> S5
+			@NORMAL: ---> S5
+
+	#R^ActivityFour: ADD A(4), A(16), N(T); SET S = X(15);
+	SET I(S) = X(1); ADD X(15); SET S = X(15); SET I(S) = -987.987;
+	SHOW 6, Locomotor Counts, A(4);
+	SET S = X(18); ADD U(S); IF S.S.3 > 2 [@NODRUG, @DRUG]
+		@NODRUG:  ADD A(26), A(30); IF S.S.5 > 2 [@TIMEOUT, @NORMAL]
+			@TIMEOUT: ADD A(8), A(20) ---> S6
+			@NORMAL: ---> S6
+		@DRUG: IF S.S.5 > 2 [@TIMEOUT, @NORMAL]
+			@TIMEOUT: ADD A(8), A(20) ---> S6
+			@NORMAL: ---> S6
+
+	#Z^Shutdown: ---> S7
+
+S5,	\State 5 will count any locomotor beam except ^ActivityThree
+	#R^ActivityOne: ADD A(4), A(13), N(T); SET S = X(12);
+	SET F(S) = X(1); ADD X(12); SET S = X(12); SET F(S) = -987.987;
+	SHOW 6, Locomotor Counts, A(4);
+	SET S = X(18); ADD U(S); IF S.S.3 > 2 [@NODRUG, @DRUG]
+		@NODRUG:  ADD A(26), A(27); IF S.S.5 > 2 [@TIMEOUT, @NORMAL]
+			@TIMEOUT: ADD A(8), A(17) ---> S3
+			@NORMAL: ---> S3
+		@DRUG: IF S.S.5 > 2 [@TIMEOUT, @NORMAL]
+			@TIMEOUT: ADD A(8), A(17) ---> S3
+			@NORMAL: ---> S3
+
+	#R^ActivityTwo: ADD A(4), A(14), N(T); SET S = X(13);
+	SET G(S) = X(1); ADD X(13); SET S = X(13); SET G(S) = -987.987;
+	SHOW 6, Locomotor Counts, A(4);
+	SET S = X(18); ADD U(S); IF S.S.3 > 2 [@NODRUG, @DRUG]
+		@NODRUG:  ADD A(26), A(28); IF S.S.5 > 2 [@TIMEOUT, @NORMAL]
+			@TIMEOUT: ADD A(8), A(18) ---> S4
+			@NORMAL: ---> S4
+		@DRUG: IF S.S.5 > 2 [@TIMEOUT, @NORMAL]
+			@TIMEOUT: ADD A(8), A(18) ---> S4
+			@NORMAL: ---> S4
+
+	#R^ActivityFour: ADD A(4), A(16), N(T); SET S = X(15);
+	SET I(S) = X(1); ADD X(15); SET S = X(15); SET I(S) = -987.987;
+	SHOW 6, Locomotor Counts, A(4);
+	SET S = X(18); ADD U(S); IF S.S.3 > 2 [@NODRUG, @DRUG]
+		@NODRUG:  ADD A(26), A(30); IF S.S.5 > 2 [@TIMEOUT, @NORMAL]
+			@TIMEOUT: ADD A(8), A(20) ---> S6
+			@NORMAL: ---> S6
+		@DRUG: IF S.S.5 > 2 [@TIMEOUT, @NORMAL]
+			@TIMEOUT: ADD A(8), A(20) ---> S6
+			@NORMAL: ---> S6
+
+	#Z^Shutdown: ---> S7
+
+S6,	\State 6 will count any locomotor beam except ^ActivityFour
+	#R^ActivityOne: ADD A(4), A(13), N(T); SET S = X(12);
+	SET F(S) = X(1); ADD X(12); SET S = X(12); SET F(S) = -987.987;
+	SHOW 6, Locomotor Counts, A(4);
+	SET S = X(18); ADD U(S); IF S.S.3 > 2 [@NODRUG, @DRUG]
+		@NODRUG:  ADD A(26), A(27); IF S.S.5 > 2 [@TIMEOUT, @NORMAL]
+			@TIMEOUT: ADD A(8), A(17) ---> S3
+			@NORMAL: ---> S3
+		@DRUG: IF S.S.5 > 2 [@TIMEOUT, @NORMAL]
+			@TIMEOUT: ADD A(8), A(17) ---> S3
+			@NORMAL: ---> S3
+
+	#R^ActivityTwo: ADD A(4), A(14), N(T); SET S = X(13);
+	SET G(S) = X(1); ADD X(13); SET S = X(13); SET G(S) = -987.987;
+	SHOW 6, Locomotor Counts, A(4);
+	SET S = X(18); ADD U(S); IF S.S.3 > 2 [@NODRUG, @DRUG]
+		@NODRUG:  ADD A(26), A(28); IF S.S.5 > 2 [@TIMEOUT, @NORMAL]
+			@TIMEOUT: ADD A(8), A(18) ---> S4
+			@NORMAL: ---> S4
+		@DRUG: IF S.S.5 > 2 [@TIMEOUT, @NORMAL]
+			@TIMEOUT: ADD A(8), A(18) ---> S4
+			@NORMAL: ---> S4
+
+	#R^ActivityThree: ADD A(4), A(15), N(T); SET S = X(14);
+	SET H(S) = X(1); ADD X(14); SET S = X(14); SET H(S) = -987.987;
+	SHOW 6, Locomotor Counts, A(4);
+	SET S = X(18); ADD U(S); IF S.S.3 > 2 [@NODRUG, @DRUG]
+		@NODRUG:  ADD A(26), A(29); IF S.S.5 > 2 [@TIMEOUT, @NORMAL]
+			@TIMEOUT: ADD A(8), A(19) ---> S5
+			@NORMAL: ---> S5
+		@DRUG: IF S.S.5 > 2 [@TIMEOUT, @NORMAL]
+			@TIMEOUT: ADD A(8), A(19) ---> S5
+			@NORMAL: ---> S5
+
+	#Z^Shutdown: ---> S7
+
+S7,	\State 7 is a holding state
+	#START: ---> SX
+
+\-------------------------------------------------------------------------
+\State Set 9 - Pre-Session Screen Updater
+
+S.S.9,
+S1,	\State updates the screen before session start
+	#START: CLEAR 7,10 ---> S2
+
+	1": IF S.S.1 <= 2 [@SHOW, @SKIP]
+	@SHOW: SHOW 1, Session Length (min), Z(0);
+	SHOW 2, Fixed Ratio, Z(1);
+	SHOW 3, Number of Cycles, Z(11);
+	SHOW 4, Drug Period (min), Z(12);
+	SHOW 5, No Drug Period (min), Z(13) ---> SX
+	@SKIP: ---> S2
+
+S2,	\State 2 is a holding state
+	#START: ---> SX
+
+\-------------------------------------------------------------------------

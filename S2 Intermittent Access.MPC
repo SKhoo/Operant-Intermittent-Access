@@ -1,6 +1,6 @@
 \-------------------------------------------------------------------------
 \ S2 Intermittent Access
-\ Version: 1.0
+\ Version: 1.01
 \ Created by Shaun Khoo (5 April 2019)
 \ >('.')<
 \ http://orcid.org/0000-0002-0972-3788
@@ -8,7 +8,7 @@
 \-------------------------------------------------------------------------
 
 \CONTROL CONSTANTS
-^SessionLength = 420	\Session length in minutes
+^SessionLength = 300	\Session length in minutes
 ^FixedRatio = 3		\Fixed ratio per reinforcer [Set to 0 for extinction]
 ^CueLength = 5		\Cue length in seconds
 ^Timeout = 25		\Timeout until next reinforcer available, includes cue
@@ -18,10 +18,10 @@
 ^ActiveLever = 1	\Active lever, set to 1 for left, 10 for right
 ^RewardIdentity = 1	\1 = reward delivered by fluid pump
 			\2 = reward delivered pellet dispenser
-^NumberOfCycles = 6	\Number of drug/no-drug cycles - this can be cut off if the session length is too short
-^DrugPeriod = 12	\Length of the drug period in minutes
-^NoDrugPeriod = 60	\Length of the no-drug period in minutes
-^Version = 100		\Program version number
+^NumberOfCycles = 10	\Number of drug/no-drug cycles - this can be cut off if the session length is too short
+^DrugPeriod = 5		\Length of the drug period in minutes
+^NoDrugPeriod = 25	\Length of the no-drug period in minutes
+^Version = 101		\Program version number
 
 \INPUTS
 ^LeftLever = 1
@@ -340,7 +340,7 @@ S3,	\State 3 counts active lever presses during the timeout
 	#RZ(7): ADD A(5); SET S = X(19), V(S) = X(1);
 	ADD X(19); SET S = X(19), V(S) = -987.987 ---> SX
 
-	#Z^EndTimeout: ON ^LeftOut, ^Rightout; OFF Z(9) ---> S2
+	#Z^EndTimeout: ON ^LeftOut, ^Rightout ---> S2
 	#Z^Shutdown: ---> S4
 
 S4,	\State 4 is a holding state
@@ -364,25 +364,25 @@ S3,	\State 3 waits to switch things off
 		@ALLOFF: OFF ^Tone, ^Pump, ^Pellet;
 		IF X(6) > 0 [@TIMEOUT, @ENDTIMEOUT]
 			@TIMEOUT: ---> S5
-			@ENDTIMEOUT: Z^EndTimeout ---> S2
+			@ENDTIMEOUT: Z^EndTimeout; OFF Z(9) ---> S2
 		@SOMEOFF: IF Z(4) > Z(2) [@KEEPPUMP, @KEEPCUE]
 			@KEEPPUMP: OFF ^Tone ---> S4
 			@KEEPCUE: OFF ^Pump, ^Pellet ---> S4
 
 S4,	\State 4 switches off anything else
-	X(5)#T: OFF ^Tone, ^Pump, ^Pellet;
+	X(5)#T: OFF ^Tone, ^Pump, ^Pellet, Z(9);
 	IF X(6) > 0 [@TIMEOUT, @ENDTIMEOUT]
 		@TIMEOUT: ---> S5
 		@ENDTIMEOUT: IF X(22) < 1.5 [@DRUG, @NODRUG]
-			@DRUG: Z^EndTimeout ---> S2
-			@NODRUG: ---> S2
+			@DRUG: Z^EndTimeout; OFF Z(9) ---> S2
+			@NODRUG: OFF Z(9) ---> S2
 
 S5,	\State 5 waits to end the timeout
 	X(6)#T: IF (A(2) >= Z(5)) AND (Z(5) > 0) [@MAX, @NOMAX]
 		@MAX: Z^Shutdown ---> S6
 		@NOMAX: IF X(22) < 1.5 [@DRUG, @NODRUG]
-			@DRUG: Z^EndTimeout ---> S2
-			@NODRUG: ---> S2
+			@DRUG: Z^EndTimeout; OFF Z(9) ---> S2
+			@NODRUG: OFF Z(9) ---> S2
 
 S6,	\State 6 is a holding state
 	#START: ---> SX

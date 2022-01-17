@@ -242,7 +242,7 @@ S2,	\State 2 counts active lever presses
 	\IF the counter has reached the current ratio and that ratio is greater than 0
 	\i.e. is not extinction, and either the maximum number of rewards has not been
 	\reached OR there is no maximum number of rewards, THEN deliver the reward.
-	IF ((X(3) > X(7)) AND (X(7) > 0)) AND ((A(2) < Z(5)) OR (Z(5) <= 0)) [@REWARD, @NULL]
+	IF ((X(3) >= X(7)) AND (X(7) > 0)) AND ((A(2) < Z(5)) OR (Z(5) <= 0)) [@REWARD, @NULL]
 		@REWARD: Z^Reward; ADD A(2), L(T);
 		SET S = X(10); SET D(S) = X(1); ADD X(10);
 		SET S = X(10); SET D(S) = -987.987;
